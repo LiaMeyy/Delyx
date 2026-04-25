@@ -1,59 +1,278 @@
 <template>
   <header>
     <h1>Delyx</h1>
-    <div class="search-bar">
-      🔍 Buscar plato o bebida...
-    </div>
+    <input type="text" v-model="searchTerm" class="search-bar" placeholder="🔍 Buscar plato o bebida..." />
+    <button type="button" class="add-product-btn" @click="abrirModalNuevoProducto">+ Agregar producto</button>
   </header>
   <main>
     <div class="categories">
-      <div class="cat-chip active">Todo</div>
-      <div class="cat-chip">Entradas</div>
-      <div class="cat-chip">Fuertes</div>
-      <div class="cat-chip">Cocteles</div>
-      <div class="cat-chip">Vinos</div>
+      <div class="cat-chip" :class="{ active: categoriaActiva === 'todo' }" @click="categoriaActiva = 'todo'">Todo</div>
+      <div class="cat-chip" :class="{ active: categoriaActiva === 'entradas' }" @click="categoriaActiva = 'entradas'">
+        Entradas</div>
+      <div class="cat-chip" :class="{ active: categoriaActiva === 'fuertes' }" @click="categoriaActiva = 'fuertes'">
+        Fuertes</div>
+      <div class="cat-chip" :class="{ active: categoriaActiva === 'cocteles' }" @click="categoriaActiva = 'cocteles'">
+        Cocteles</div>
+      <div class="cat-chip" :class="{ active: categoriaActiva === 'vinos' }" @click="categoriaActiva = 'vinos'">Vinos
+      </div>
     </div>
     <div class="content">
       <div class="items-grid">
-        <div class="item-card" v-for="item in items" :key="item.name">
+        <div class="item-card" v-for="item in itemsFiltrados()" :key="item.name" @click="abrirModalProducto(item)">
           <img :src="item.image" :alt="item.name" class="item-thumb" />
-          <span class="item-name">{{ item.name }}</span>
-          <span class="item-desc">{{ item.descripcion }}</span>
-          <span class="item-price">${{ item.price }}</span>
+          <div class="card-info">
+            <span class="item-name">{{ item.name }}</span>
+            <span class="item-desc">{{ item.descripcion }}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+             <span class="item-price">${{ item.price.toLocaleString() }}</span>
+              <span class="item-stock">Stock: {{ item.stock }}</span>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="cuenta">
-        <div class="cart-summary">
-          <div class="titulo">
-            <h1>Cuenta</h1>
+    <!-- BOTÓN FLOTANTE STICKY DEL CARRITO -->
+    <button class="cart-button-sticky" @click="abrirCarrito">
+      🛒 {{ carrito.length }}
+    </button>
+
+    <!-- MODAL PARA AGREGAR PRODUCTO -->
+    <div class="modal-overlay" v-if="modalProductoAbierto" @click="cerrarModalProducto">
+      <div class="modal-agregar-producto" @click.stop>
+        <div class="modal-header">
+          <h1>{{ productoSeleccionado?.name }}</h1>
+          <button class="btn-cerrar" @click="cerrarModalProducto">✕</button>
+        </div>
+
+        <!-- IMAGEN Y DESCRIPCIÓN -->
+        <div class="producto-detalle">
+          <img :src="productoSeleccionado?.image" :alt="productoSeleccionado?.name" class="modal-imagen" />
+          <p class="modal-descripcion">{{ productoSeleccionado?.descripcion }}</p>
+          <p class="modal-precio">Precio: <span style="font-size: 20px; font-weight: bold; color: #ff4d6d;">${{
+            productoSeleccionado?.price.toLocaleString() }}</span></p>
+          <p class="modal-stock" v-if="productoSeleccionado?.stock > 0">Stock disponible: {{ productoSeleccionado?.stock
+          }}</p>
+          <p class="modal-sin-stock" v-else>Sin stock</p>
+        </div>
+
+        <div class="grey-bar"></div>
+
+        <!-- CANTIDAD -->
+        <div class="seccion-cantidad">
+          <h3>Cantidad</h3>
+          <div class="cantidad-selector">
+            <button class="btn-cantidad" @click="restarCantidadModal" :disabled="cantidadModal <= 1">-</button>
+            <input type="number" v-model.number="cantidadModal" class="input-cantidad" min="1" />
+            <button class="btn-cantidad" @click="sumarCantidadModal"
+              :disabled="cantidadModal >= productoSeleccionado?.stock">+</button>
           </div>
-          <div class="titulos_P_C">
-            <h2>Producto</h2>
-            <h2>Cantidad</h2>
+        </div>
+
+        <!-- OBSERVACIONES -->
+        <div class="seccion-observaciones">
+          <h3>Observaciones del producto (opcional)</h3>
+          <textarea v-model="observacionesModal" class="textarea-observaciones"
+            placeholder="Ej: Sin picante, extra queso, sin cebolla..."></textarea>
+        </div>
+
+        <div class="grey-bar"></div>
+
+        <!-- BOTÓN AGREGAR -->
+        <button class="btn-agregar-carrito" @click="agregarAlCarritoConDetalles"
+          :disabled="cantidadModal <= 0 || !productoSeleccionado">
+          Agregar al carrito
+        </button>
+      </div>
+    </div>
+
+    <!-- MODAL PARA AGREGAR PRODUCTO NUEVO -->
+    <div class="modal-overlay" v-if="modalNuevoProductoAbierto" @click="cerrarModalNuevoProducto">
+      <div class="modal-agregar-producto" @click.stop>
+        <div class="modal-header">
+          <h1>Agregar Producto</h1>
+          <button class="btn-cerrar" @click="cerrarModalNuevoProducto">✕</button>
+        </div>
+        <div class="alert" v-if="alertNuevoProducto">{{ alertNuevoProducto }}</div>
+        <div class="producto-detalle">
+          <div class="form-field">
+            <label class="form-label">Nombre</label>
+            <input v-model="nuevoProducto.name" class="form-input" type="text" placeholder="Nombre del producto" />
           </div>
-          <div class="grey-bar"></div>
-          <!-- ESTO ES EN JS -->
-          <div class="Producto_Cantidad">
+          <div class="form-field">
+            <label class="form-label">Precio</label>
+            <input v-model.number="nuevoProducto.price" class="form-input" type="number" min="0"
+              placeholder="Precio en pesos" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Categoría</label>
+            <select v-model="nuevoProducto.category" class="form-select">
+              <option value="entradas">Entradas</option>
+              <option value="fuertes">Fuertes</option>
+              <option value="cocteles">Cocteles</option>
+              <option value="vinos">Vinos</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Descripción</label>
+            <textarea v-model="nuevoProducto.descripcion" class="form-textarea"
+              placeholder="Descripción del producto"></textarea>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Stock</label>
+            <input v-model.number="nuevoProducto.stock" class="form-input" type="number" min="0"
+              placeholder="Cantidad disponible" />
+          </div>
+          <div class="form-field">
+            <label class="form-label">Link de imagen</label>
+            <input v-model="nuevoProducto.image" class="form-input" type="text"
+              placeholder="URL de la imagen (opcional)" />
+          </div>
+
+          <button type="button" class="btn-agregar-carrito" @click="agregarProductoNuevo">Guardar producto</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL DEL CARRITO -->
+    <div class="modal-overlay" v-if="modalAbierto" @click="cerrarCarrito">
+      <div class="modal-carrito" @click.stop>
+        <div v-if="cargando" class="spinner-overlay">
+          <div class="spinner"></div>
+          <p>Procesando pedido...</p>
+        </div>
+        <div class="modal-header">
+          <h1>Mi Cuenta</h1>
+          <button class="btn-cerrar" @click="cerrarCarrito">✕</button>
+        </div>
+
+        <div class="titulos_P_C">
+          <h2>Producto</h2>
+          <h2>Cantidad</h2>
+        </div>
+        <div class="grey-bar"></div>
+
+        <!-- PRODUCTOS EN EL CARRITO -->
+        <div class="items-carrito">
+          <div v-if="carrito.length === 0" class="carrito-vacio">
+            El carrito está vacío 🍽️
+          </div>
+          <div v-for="(itemCarrito, index) in carrito" :key="index" class="Producto_Cantidad">
             <div class="producto">
-              <div id="nombre_producto"> holsad</div>
+              <div class="nombre_producto">{{ itemCarrito.name }}</div>
+              <div v-if="itemCarrito.observaciones" class="observaciones-carrito">
+                📝 {{ itemCarrito.observaciones }}
+              </div>
             </div>
             <div class="Cantidad_Precio">
               <div class="cantidad">
-                <div id="cantidad_producto"> <button class="boton_cantidad">-</button><span
-                    class="cuadro_Cantidad">1</span><button class="boton_cantidad">+</button></div>
+                <button class="boton_cantidad" @click="restarCantidad(index)">-</button>
+                <span class="cuadro_Cantidad">{{ itemCarrito.cantidad }}</span>
+                <button class="boton_cantidad" @click="sumarCantidad(index)">+</button>
               </div>
               <div class="precio">
-                <div id="precio_producto">x $ 10.000 = <span style="font-weight: bold;">$ 10.000</span> </div>
+                x $ {{ itemCarrito.price.toLocaleString() }} = <span style="font-weight: bold;">$ {{ (itemCarrito.price
+                  * itemCarrito.cantidad).toLocaleString() }}</span>
               </div>
+              <button class="btn-eliminar" @click="eliminarDelCarrito(index)">🗑️</button>
             </div>
           </div>
-
-          <!-- HASTA ACÁ -->
-          <div class="grey-bar"></div>
         </div>
-        <button class="checkout-btn">Finalizar Pedido</button>
+
+        <div class="grey-bar"></div>
+
+        <!-- TOTAL -->
+        <div class="total-carrito">
+          <h2>Total: $ {{ totalCarrito.toLocaleString() }}</h2>
+        </div>
+
+        <div class="campo-mesa">
+          <label>Número de mesa</label>
+          <input type="number" v-model.number="mesaActual" placeholder="Ej: 5" min="1" class="form-input" />
+        </div>
+        <button class="checkout-btn" @click="finalizarPedido">Finalizar Pedido</button>
       </div>
+
+    </div>
+    <!-- MODAL FACTURA -->
+    <div class="modal-overlay" v-if="modalFacturaAbierto" @click="cerrarFactura">
+      <div class="modal-factura" @click.stop>
+
+        <!-- ENCABEZADO -->
+        <div class="factura-header">
+          <div class="factura-logo">
+            <strong>DELYX</strong><br />
+            <span>Restaurante & Bar</span>
+          </div>
+          <div class="factura-no">NO. {{ numeroFactura }}</div>
+        </div>
+
+        <h1 class="factura-titulo">FACTURA</h1>
+
+        <p class="factura-fecha"><strong>Fecha:</strong> {{ fechaFactura }}</p>
+
+        <!-- BILLED TO / FROM -->
+        <div class="factura-partes">
+          <div>
+            <p><strong>Facturado a:</strong></p>
+            <p>Mesa {{ mesaFactura }}</p>
+            <p>Delyx Restaurant</p>
+            <p>Cra. 7 #62-35, Bogotá</p>
+            <p>delyx@restaurante.com</p>
+          </div>
+          <div>
+            <p><strong>De:</strong></p>
+            <p>Delyx S.A.S</p>
+            <p>Cra. 7 #62-35, Bogotá</p>
+            <p>NIT: 901.234.567-8</p>
+            <p>delyx@restaurante.com</p>
+          </div>
+        </div>
+
+        <!-- TABLA DE ITEMS -->
+        <table class="factura-tabla">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Cantidad</th>
+              <th>Precio</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in carrito" :key="item.name">
+              <td>{{ item.name }}</td>
+              <td style="text-align: center;">{{ item.cantidad }}</td>
+              <td style="text-align: right;">${{ item.price.toLocaleString() }}</td>
+              <td style="text-align: right;">${{ (item.price * item.cantidad).toLocaleString() }}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align: right;"><strong>Total</strong></td>
+              <td style="text-align: right;"><strong>${{ totalCarrito.toLocaleString() }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <!-- PIE -->
+        <div class="factura-pie">
+          <p><strong>Método de pago:</strong> Efectivo</p>
+          <p><strong>Nota:</strong> ¡Gracias por elegir Delyx! Vuelve pronto.</p>
+        </div>
+
+        <!-- BOTONES -->
+        <div class="factura-acciones">
+          <button class="btn-cerrar-factura" @click="cerrarFactura">Cerrar</button>
+          <button class="btn-imprimir" @click="imprimirFactura">Imprimir / Guardar PDF</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- NOTIFICACIONES -->
+    <div v-if="mostrarNotif" :class="['notificacion', tipoNotificacion]">
+      {{ notificacion }}
     </div>
   </main>
 
@@ -61,7 +280,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 
 const items = ref([
   // ENTRADAS (10)
@@ -312,281 +531,292 @@ const items = ref([
     stock: 20
   }
 ])
+
+// VARIABLES PARA FACTURA 
+const modalFacturaAbierto = ref(false)
+const numeroFactura = ref('')
+const fechaFactura = ref('')
+const mesaFactura = ref('')
+const mesaActual = ref('')
+// CARRITO
+const carrito = ref([])
+const modalAbierto = ref(false)
+
+// MODAL PARA AGREGAR PRODUCTO
+const cargando = ref(false)
+const categoriaActiva = ref('todo')
+const modalProductoAbierto = ref(false)
+const modalNuevoProductoAbierto = ref(false)
+const productoSeleccionado = ref(null)
+const cantidadModal = ref(1)
+const observacionesModal = ref('')
+const nuevoProducto = reactive({
+  name: '',
+  price: 0,
+  category: 'entradas',
+  descripcion: '',
+  stock: 0,
+  image: ''
+})
+const alertNuevoProducto = ref('')
+
+// BÚSQUEDA
+const searchTerm = ref('')
+
+// NOTIFICACIONES
+const notificacion = ref('')
+const tipoNotificacion = ref('success')
+const mostrarNotif = ref(false)
+
+// FILTRAR ITEMS POR BÚSQUEDA
+function itemsFiltrados() {
+  let resultado = items.value
+
+  if (categoriaActiva.value !== 'todo') {
+    resultado = resultado.filter(item => item.category === categoriaActiva.value)
+  }
+
+  if (searchTerm.value) {
+    const term = searchTerm.value.toLowerCase()
+    resultado = resultado.filter(item =>
+      item.name.toLowerCase().includes(term) ||
+      item.descripcion.toLowerCase().includes(term)
+    )
+  }
+
+  return resultado
+}
+
+// ABRIR Y CERRAR MODAL DEL CARRITO
+function abrirCarrito() {
+  modalAbierto.value = true
+}
+
+function cerrarCarrito() {
+  modalAbierto.value = false
+}
+
+// ABRIR Y CERRAR MODAL DEL PRODUCTO
+function abrirModalProducto(item) {
+  productoSeleccionado.value = item
+  cantidadModal.value = 1
+  observacionesModal.value = ''
+  modalProductoAbierto.value = true
+}
+
+function cerrarModalProducto() {
+  modalProductoAbierto.value = false
+  productoSeleccionado.value = null
+  cantidadModal.value = 1
+  observacionesModal.value = ''
+}
+
+function abrirModalNuevoProducto() {
+  resetNuevoProducto()
+  modalNuevoProductoAbierto.value = true
+}
+
+function cerrarModalNuevoProducto() {
+  modalNuevoProductoAbierto.value = false
+  resetNuevoProducto()
+}
+
+function resetNuevoProducto() {
+  nuevoProducto.name = ''
+  nuevoProducto.price = 0
+  nuevoProducto.category = 'entradas'
+  nuevoProducto.descripcion = ''
+  nuevoProducto.stock = 0
+  nuevoProducto.image = ''
+  alertNuevoProducto.value = ''
+}
+
+function validarProductoNuevo() {
+  if (!nuevoProducto.name.trim()) {
+    return 'El nombre es obligatorio.'
+  }
+  if (!nuevoProducto.descripcion.trim()) {
+    return 'La descripción es obligatoria.'
+  }
+  if (nuevoProducto.price <= 0) {
+    return 'El precio debe ser mayor a 0.'
+  }
+  if (!nuevoProducto.category) {
+    return 'Selecciona una categoría.'
+  }
+  if (nuevoProducto.stock <= 0) {
+    return 'El stock debe ser mayor a 0.'
+  }
+  return ''
+}
+
+// CONTROLAR CANTIDAD EN EL MODAL
+function sumarCantidadModal() {
+  if (cantidadModal.value < productoSeleccionado.value.stock) {
+    cantidadModal.value++
+  }
+}
+
+function agregarProductoNuevo() {
+  const error = validarProductoNuevo()
+  if (error) {
+    alertNuevoProducto.value = error
+    return
+  }
+
+  const producto = nuevoProducto
+
+  const itemParaAgregar = {
+    name: producto.name,
+    price: Number(producto.price),
+    image: producto.image || 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&q=80',
+    category: producto.category,
+    descripcion: producto.descripcion,
+    stock: Number(producto.stock)
+  }
+
+  items.value.push(itemParaAgregar)
+  categoriaActiva.value = 'todo'
+  mostrarNotificacion(`✅ Producto ${producto.name} agregado correctamente`)
+  cerrarModalNuevoProducto()
+}
+
+function restarCantidadModal() {
+  if (cantidadModal.value > 1) {
+    cantidadModal.value--
+  }
+}
+
+// AGREGAR AL CARRITO CON OBSERVACIONES
+function agregarAlCarritoConDetalles() {
+  const item = productoSeleccionado.value
+
+  if (!item || cantidadModal.value <= 0) {
+    mostrarNotificacion('❌ Por favor selecciona una cantidad válida', 'error')
+    return
+  }
+
+  if (cantidadModal.value > item.stock) {
+    mostrarNotificacion('❌ No hay suficiente stock disponible', 'error')
+    return
+  }
+
+  // Buscar si el producto ya existe en el carrito (con las mismas observaciones)
+  const existe = carrito.value.find(p => p.name === item.name && p.observaciones === observacionesModal.value)
+
+  if (existe) {
+    // Si ya existe con las mismas observaciones, sumar cantidad
+    existe.cantidad += cantidadModal.value
+  } else {
+    // Si no existe, agregarlo con observaciones
+    carrito.value.push({
+      ...item,
+      cantidad: cantidadModal.value,
+      observaciones: observacionesModal.value
+    })
+  }
+
+  // Actualizar total
+  actualizarTotal()
+
+  // Mostrar notificación
+  mostrarNotificacion(`✅ ${item.name} (x${cantidadModal.value}) agregado al carrito`)
+
+  // Cerrar modal
+  cerrarModalProducto()
+}
+
+// SUMAR CANTIDAD
+function sumarCantidad(index) {
+  carrito.value[index].cantidad++
+  actualizarTotal()
+}
+
+// RESTAR CANTIDAD
+function restarCantidad(index) {
+  if (carrito.value[index].cantidad > 1) {
+    carrito.value[index].cantidad--
+    actualizarTotal()
+  }
+}
+
+// ELIMINAR DEL CARRITO
+function eliminarDelCarrito(index) {
+  carrito.value.splice(index, 1)
+  actualizarTotal()
+}
+
+// CALCULAR TOTAL (sin computed, solo una función)
+function calcularTotal() {
+  let total = 0
+  carrito.value.forEach(item => {
+    total += item.price * item.cantidad
+  })
+  return total
+}
+
+// VARIABLE PARA TOTAL (se actualiza cada vez que cambias el carrito)
+const totalCarrito = ref(0)
+
+// FUNCIONAR QUE ACTUALIZA EL TOTAL CUANDO CAMBIAS EL CARRITO
+function actualizarTotal() {
+  totalCarrito.value = calcularTotal()
+}
+
+// MOSTRAR NOTIFICACIÓN
+function mostrarNotificacion(mensaje, tipo = 'success') {
+  notificacion.value = mensaje
+  tipoNotificacion.value = tipo
+  mostrarNotif.value = true
+  setTimeout(() => {
+    mostrarNotif.value = false
+  }, 3000)
+}
+
+// FINALIZAR PEDIDO
+function finalizarPedido() {
+  if (carrito.value.length === 0) {
+    mostrarNotificacion('❌ El carrito está vacío', 'error')
+    return
+  }
+  if (!mesaActual.value || mesaActual.value <= 0) {
+    mostrarNotificacion('❌ Ingresa un número de mesa válido', 'error')
+    return
+  }
+
+  cargando.value = true
+
+  setTimeout(() => {
+    carrito.value.forEach(itemCarrito => {
+      const item = items.value.find(i => i.name === itemCarrito.name)
+      if (item) item.stock -= itemCarrito.cantidad
+    })
+
+    // Datos para la factura
+    const ahora = new Date()
+    fechaFactura.value = ahora.toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
+    numeroFactura.value = String(Math.floor(Math.random() * 900000) + 100000)
+    mesaFactura.value = mesaActual.value
+
+    actualizarTotal()
+    cargando.value = false
+    modalAbierto.value = false
+    modalFacturaAbierto.value = true
+
+  }, 1500)
+}
+
+function cerrarFactura() {
+  modalFacturaAbierto.value = false
+  carrito.value = []
+  mesaActual.value = ''
+  actualizarTotal()
+}
+
+function imprimirFactura() {
+  window.print()
+}
+
+// Actualizar total cada que haya cambios
+actualizarTotal()
 </script>
-
-<style>
-/* RESET */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: 'Inter', sans-serif;
-}
-
-/* BODY */
-body {
-  background: #0f0f14;
-  color: #fff;
-}
-
-/* HEADER */
-header {
-  padding: 20px;
-  background: #15151d;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-header h1 {
-  font-family: 'Poppins', sans-serif;
-  font-size: 28px;
-  /* Tamaño ideal para destacar */
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: #ff4d6d;
-}
-
-.cuadro_Cantidad {
-  background: #414157;
-  color: white;
-  padding: 5px 20px
-}
-
-.boton_cantidad {
-  background: #ff4d6d;
-  border: none;
-  padding: 5px 10px;
-  color: white;
-  cursor: pointer;
-  transition: 0.2s;
-  font-size: 16px;
-  cursor: pointer
-}
-
-.boton_cantidad:hover {
-  background: #ff6b86;
-}
-
-.Cantidad_Precio {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.Producto_Cantidad {
-  display: flex;
-  padding: 20px;
-  justify-content: space-between;
-  width: 100%;
-  font-size: 16px;
-}
-
-.titulos_P_C {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 20px;
-
-}
-
-.grey-bar {
-  width: 100%;
-  height: 0.2vh;
-  background: #343447;
-  margin: 10px 0;
-}
-
-.titulo {
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-  align-items: center;
-}
-
-
-.content {
-  display: flex;
-  flex-direction: row;
-  gap: 20px;
-  padding: 2%;
-
-}
-
-.cuenta {
-  background: #1f1f2b;
-  padding: 15px;
-  border-radius: 12px;
-  width: 30%;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  border-top: 5px solid #ff4d6d;
-  position: sticky;
-  top: 100px;
-  height: fit-content;
-  box-shadow: 0 4px 20px rgba(255, 77, 109, 0.15);
-}
-
-.titulo h1 {
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.search-bar {
-  background: #1f1f2b;
-  padding: 10px;
-  border-radius: 12px;
-  color: #aaa;
-}
-
-/* CATEGORIES */
-.categories {
-  display: flex;
-  gap: 10px;
-  padding: 15px;
-  overflow-x: auto;
-}
-
-.cat-chip {
-  padding: 8px 14px;
-  background: #1f1f2b;
-  border-radius: 999px;
-  font-size: 14px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: 0.2s;
-}
-
-.cat-chip:hover {
-  background: #2a2a3a;
-}
-
-.cat-chip.active {
-  background: #ff4d6d;
-  color: white;
-}
-
-/* GRID */
-.items-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 15px;
-  padding: 15px;
-  width: 70%;
-  overflow-x: auto;
-  min-width: 800px;
-}
-
-/* CARD */
-.item-card {
-  display: flex;
-  background: #1a1a25;
-  border-radius: 18px;
-  padding: 15px;
-  position: relative;
-  transition: 0.25s;
-  cursor: pointer;
-  padding: 10px;
-  min-width: 0;
-  flex-direction: column;
-justify-content: center;
-align-items: center;
-gap: 20px
-}
-
-.item-card:hover {
-  transform: translateY(-5px);
-  background: #222233;
-}
-
-
-.item-thumb {
-  width: 100%;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 10px;
-  margin-bottom: 10px;
-}
-
-/* TEXT */
-.item-name {
-  display: block;
-  font-size: 14px;
-  /* Un pelín más grande para que sea legible */
-  font-weight: 600;
-  margin-bottom: 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.item-price {
-  font-size: 13px;
-  font-weight: 400;
-  color: #8e8e93;
-  /* Un gris más suave para jerarquía visual */
-}
-
-/* ADD BUTTON */
-.add-trigger {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  background: #ff4d6d;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  transition: 0.2s;
-}
-
-.add-trigger:hover {
-  transform: scale(1.1);
-  background: #ff6b86;
-}
-
-/* FOOTER */
-footer {
-  position: sticky;
-  bottom: 0;
-  background: #15151d;
-  padding: 15px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* CART */
-.cart-summary {
-  font-size: 14px;
-}
-
-/* BUTTON */
-.checkout-btn {
-  background: #ff4d6d;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 10px;
-  color: white;
-  cursor: pointer;
-  transition: 0.2s;
-  font-size: 16px;
-}
-
-.checkout-btn:hover {
-  background: #ff6b86;
-}
-
-.categories::-webkit-scrollbar {
-  display: none;
-}
-
-.categories {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>
