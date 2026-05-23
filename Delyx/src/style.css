@@ -911,7 +911,7 @@ header h1 {
 
   .categories {
     gap: 8px;
-    padding: 10px 0;
+    padding: 10px 10px;
   }
 
   .cat-chip {
