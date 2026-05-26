@@ -24,12 +24,21 @@
             <span class="item-name">{{ item.name }}</span>
             <span class="item-desc">{{ item.descripcion }}</span>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-             <span class="item-price">${{ item.price.toLocaleString() }}</span>
+              <span class="item-price">${{ item.price.toLocaleString() }}</span>
               <span class="item-stock">Stock: {{ item.stock }}</span>
             </div>
           </div>
         </div>
       </div>
+    </div>
+    <div v-if="itemsFiltrados().length === 0" class="no-resultados">
+      <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#808080"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="16.65" y1="16.65" x2="21" y2="21"></line>
+      </svg>
+      <p>No se encontró resultado</p>
+
     </div>
 
     <!-- BOTÓN FLOTANTE STICKY DEL CARRITO -->
@@ -401,7 +410,7 @@ const items = ref([
   {
     name: 'Berenjena Asada',
     price: 25000,
-    image: 'https://veganwetdreams.com/wp-content/uploads/2023/09/Berenjenas-al-horno.jpg',
+    image: 'https://www.recetasdorada.com/wp-content/uploads/2025/08/534957434_122176499552376676_34255477346523765_n.webp',
     category: 'fuertes',
     descripcion: 'Berenjena al horno con salsa de yogur, granada y menta.',
     stock: 9
@@ -814,7 +823,48 @@ function cerrarFactura() {
 }
 
 function imprimirFactura() {
-  window.print()
+  const factura = document.querySelector('.modal-factura')
+  const facturaHTML = factura.innerHTML
+
+  const estilos = `
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Helvetica Neue', sans-serif; }
+    body { background: white; color: #111; padding: 40px; }
+    .factura-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; font-size: 13px; color: #555; }
+    .factura-logo strong { font-size: 15px; color: #111; }
+    .factura-titulo { font-size: 48px; font-weight: 900; letter-spacing: -1px; margin: 0 0 20px; color: #111; }
+    .factura-fecha { margin-bottom: 20px; font-size: 14px; }
+    .factura-partes { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; font-size: 13px; line-height: 1.8; }
+    .factura-tabla { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 24px; }
+    .factura-tabla thead tr { background: #f0f0f0; }
+    .factura-tabla th, .factura-tabla td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+    .factura-tabla tfoot td { border-top: 2px solid #111; border-bottom: none; padding-top: 12px; }
+    .factura-pie { font-size: 13px; line-height: 1.8; margin-bottom: 24px; }
+    .factura-acciones { display: none; }
+    @page { margin: 10mm; size: A4; }
+  `
+
+  // Crear un iframe invisible
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9999;'
+  document.body.appendChild(iframe)
+
+  iframe.contentDocument.write(`
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>${estilos}</style>
+      </head>
+      <body>${facturaHTML}</body>
+    </html>
+  `)
+  iframe.contentDocument.close()
+
+  setTimeout(() => {
+    iframe.contentWindow.focus()
+    iframe.contentWindow.print()
+    // Remover iframe después de imprimir
+    setTimeout(() => document.body.removeChild(iframe), 500)
+  }, 300)
 }
 
 // Actualizar total cada que haya cambios

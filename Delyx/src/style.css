@@ -272,6 +272,18 @@ header h1 {
   object-fit: cover;
   transition: transform 0.4s ease;
 }
+/* NO SE ENCUENTRA RESULTADO */
+.no-resultados {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 20px;
+  width: 100%;
+  color: #808080;
+  font-size: 16px;
+}
 
 /* CONTENEDOR INFO */
 .card-info {
@@ -669,14 +681,18 @@ header h1 {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(255,255,255,0.2);
+  border: 4px solid rgba(255, 255, 255, 0.2);
   border-top-color: #ff4d6d;
   border-radius: 50%;
   animation: girar 0.8s linear infinite;
 }
+
 @keyframes girar {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
+
 .modal-factura {
   background: white;
   color: #111;
@@ -797,10 +813,51 @@ header h1 {
 }
 
 @media print {
-  body * { visibility: hidden; }
-  .modal-factura, .modal-factura * { visibility: visible; }
-  .modal-factura { position: absolute; top: 0; left: 0; width: 100%; box-shadow: none; }
-  .factura-acciones { display: none; }
+
+  /* Ocultar TODO el body */
+  body,
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Ocultar el overlay oscuro */
+  .modal-overlay {
+    background: none !important;
+    position: static !important;
+    display: block !important;
+  }
+
+  /* Mostrar solo la factura */
+  .modal-factura,
+  .modal-factura * {
+    visibility: visible !important;
+  }
+
+  /* Posicionar la factura en la esquina, sin scroll ni sombra */
+  .modal-factura {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 20px !important;
+    margin: 0 !important;
+  }
+
+  /* Ocultar los botones de la factura */
+  .factura-acciones {
+    display: none !important;
+  }
+
+  /* Asegurar que no hay márgenes raros */
+  @page {
+    margin: 10mm;
+    size: A4;
+  }
 }
 
 .notificacion {
@@ -827,8 +884,15 @@ header h1 {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 
@@ -843,12 +907,13 @@ header h1 {
     flex: 1 1 100%;
     text-align: center;
   }
+
   .notificacion {
-  right: 16px;
-  left: 16px;
-  max-width: 100%;
-  text-align: center;
-}
+    right: 16px;
+    left: 16px;
+    max-width: 100%;
+    text-align: center;
+  }
 
   .search-bar {
     flex: 1 1 100%;
@@ -895,14 +960,15 @@ header h1 {
   header h1 {
     font-size: 28px;
   }
+
   .notificacion {
-  bottom: 70px;
-  right: 12px;
-  left: 12px;
-  max-width: 100%;
-  font-size: 13px;
-  padding: 12px 16px;
-}
+    bottom: 70px;
+    right: 12px;
+    left: 12px;
+    max-width: 100%;
+    font-size: 13px;
+    padding: 12px 16px;
+  }
 
   .search-bar,
   .add-product-btn {
@@ -972,5 +1038,5 @@ header h1 {
     right: 12px;
     bottom: 12px;
   }
-  
+
 }
